@@ -266,12 +266,21 @@ class DataManager:
             print(f"Stock reduction error: {e}")
             return False, 0
     
+    def get_config(self, key, default=None):
+        """Get a configuration value safely"""
+        cfg = self.load_config()
+        return cfg.get(key, default)
+
     def get_all_invoices(self):
         """Get all invoices as list of dictionaries"""
         try:
             df = pd.read_csv(INVOICE_FILE)
             invoices = []
             for _, row in df.iterrows():
+                # Skip invalid rows (NaN invoice number)
+                if pd.isna(row['invoice_number']):
+                    continue
+                    
                 invoice_data = row.to_dict()
                 # Parse items_json back to list
                 try:

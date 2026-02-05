@@ -504,6 +504,10 @@ class InvoiceTab(ttk.Frame):
                 self.app.inventory_tab._refresh()
                 print("Inventory tab refreshed!")
             
+            # Refresh history tab if it exists
+            if hasattr(self.app, 'history_tab'):
+                self.app.history_tab._refresh()
+            
             os.startfile(path)
             messagebox.showinfo("Success", f"Invoice generated and inventory updated!\n\nSaved to: {path}")
         except Exception as e: 
@@ -754,6 +758,7 @@ class InventoryTab(ttk.Frame):
 class InvoiceHistoryTab(ttk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, style="Main.TFrame")
+        self.parent = parent  # Store parent for Toplevel windows
         self.app = app
         self.c = app.c
         
@@ -866,6 +871,15 @@ class InvoiceHistoryTab(ttk.Frame):
         # Load invoices
         self._refresh()
     
+    
+    def _parse_val(self, val):
+        """Parse currency string to float"""
+        if isinstance(val, (int, float)):
+            return float(val)
+        if hasattr(val, 'replace'):
+            return float(val.replace(',', '').replace(' BDT', '').strip() or 0)
+        return 0.0
+
     def _refresh(self):
         """Refresh invoice list"""
         # Clear existing items
@@ -874,14 +888,16 @@ class InvoiceHistoryTab(ttk.Frame):
         
         # Load all invoices
         invoices = self.app.dm.get_all_invoices()
+        print(f"DEBUG: Loaded {len(invoices)} invoices: {[i.get('invoice_number') for i in invoices]}")
         
         for inv in invoices:
+            total = self._parse_val(inv.get('grand_total', 0))
             self.tree.insert("", "end", values=(
                 inv.get('invoice_number', ''),
                 inv.get('date', ''),
                 inv.get('customer_name', ''),
                 inv.get('customer_phone', ''),
-                f"{float(inv.get('grand_total', 0)):,.0f}",
+                f"{total:,.0f}",
                 inv.get('payment_method', '')
             ))
     
@@ -901,12 +917,13 @@ class InvoiceHistoryTab(ttk.Frame):
         invoices = self.app.dm.search_invoices(query)
         
         for inv in invoices:
+            total = self._parse_val(inv.get('grand_total', 0))
             self.tree.insert("", "end", values=(
                 inv.get('invoice_number', ''),
                 inv.get('date', ''),
                 inv.get('customer_name', ''),
                 inv.get('customer_phone', ''),
-                f"{float(inv.get('grand_total', 0)):,.0f}",
+                f"{total:,.0f}",
                 inv.get('payment_method', '')
             ))
     
@@ -952,14 +969,25 @@ class InvoiceHistoryTab(ttk.Frame):
         # Products
         ttk.Label(content, text="Products:", style="Header.TLabel").pack(anchor="w", pady=(10, 5))
         for prod in invoice_data.get('products', []):
-            prod_text = f"• {prod.get('name', '')} (Size {prod.get('size', '')}) x{prod.get('qty', 0)} = {float(prod.get('price', 0)) * int(prod.get('qty', 0)):,.0f} BDT"
+            try:
+                price = self._parse_val(prod.get('price', 0))
+                qty = int(prod.get('qty', 0))
+                total_price = price * qty
+                prod_text = f"• {prod.get('name', '')} (Size {prod.get('size', '')}) x{qty} = {total_price:,.0f} BDT"
+            except:
+                prod_text = f"• {prod.get('name', '')} (Size {prod.get('size', '')}) x{prod.get('qty', '')}"
             ttk.Label(content, text=prod_text, style="Label.TLabel").pack(anchor="w", padx=(10, 0))
         
         # Totals
-        ttk.Label(content, text=f"\nSubtotal: {float(invoice_data.get('subtotal', 0)):,.0f} BDT", style="Label.TLabel").pack(anchor="w", pady=(15, 0))
-        ttk.Label(content, text=f"Discount: {float(invoice_data.get('discount', 0)):,.0f} BDT", style="Label.TLabel").pack(anchor="w")
-        ttk.Label(content, text=f"Delivery: {float(invoice_data.get('delivery', 0)):,.0f} BDT", style="Label.TLabel").pack(anchor="w")
-        ttk.Label(content, text=f"Grand Total: {float(invoice_data.get('grand_total', 0)):,.0f} BDT", style="Header.TLabel").pack(anchor="w", pady=(5, 15))
+        subtotal = self._parse_val(invoice_data.get('subtotal', 0))
+        discount = self._parse_val(invoice_data.get('discount', 0))
+        delivery = self._parse_val(invoice_data.get('delivery', 0))
+        grand_total = self._parse_val(invoice_data.get('grand_total', 0))
+        
+        ttk.Label(content, text=f"\nSubtotal: {subtotal:,.0f} BDT", style="Label.TLabel").pack(anchor="w", pady=(15, 0))
+        ttk.Label(content, text=f"Discount: {discount:,.0f} BDT", style="Label.TLabel").pack(anchor="w")
+        ttk.Label(content, text=f"Delivery: {delivery:,.0f} BDT", style="Label.TLabel").pack(anchor="w")
+        ttk.Label(content, text=f"Grand Total: {grand_total:,.0f} BDT", style="Header.TLabel").pack(anchor="w", pady=(5, 15))
         
         ttk.Label(content, text=f"Payment Method: {invoice_data.get('payment_method', '')}", style="Label.TLabel").pack(anchor="w")
         if invoice_data.get('transaction_id'):
