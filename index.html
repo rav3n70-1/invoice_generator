@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice - Sneaker Canvas BD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oswald:wght@500;700&display=swap"
+        rel="stylesheet">
+    <style>
+        /* Custom Font Definitions */
+        .font-header {
+            font-family: 'Oswald', sans-serif;
+        }
+
+        .font-body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        :root {
+            --brand-red: #EE1C25;
+            --brand-black: #111111;
+        }
+
+        .bg-brand-red {
+            background-color: var(--brand-red);
+        }
+
+        .text-brand-red {
+            color: var(--brand-red);
+        }
+
+        .border-brand-red {
+            border-color: var(--brand-red);
+        }
+
+        /* Subtle Background Pattern - Abstract Sneaker Tread/Urban style */
+        .bg-pattern {
+            background-color: #ffffff;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        /* A4 Page Setup */
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f3f4f6;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        .a4-page {
+            width: 210mm;
+            min-height: 297mm;
+            /* Screen: Allow infinite growth */
+            margin: 0 auto;
+            background-color: white;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: visible;
+            /* Screen: Let user see everything */
+            box-shadow: none;
+        }
+
+        @media print {
+            body {
+                background-color: white;
+            }
+
+            .a4-page {
+                box-shadow: none;
+                margin: 0;
+                width: 100%;
+                height: 297mm !important;
+                /* Print: Strict limit */
+                overflow: hidden !important;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+
+            /* Print Layout Control */
+            .flex-no-shrink {
+                flex-shrink: 0 !important;
+            }
+
+            .table-container {
+                overflow: hidden !important;
+                flex-grow: 1;
+                flex-shrink: 1 !important;
+                /* Allow this to shrink/clip */
+                display: block;
+            }
+        }
+
+        /* Editable fields interaction */
+        [contenteditable="true"]:hover {
+            background-color: #f3f4f6;
+            cursor: text;
+            border-radius: 2px;
+            outline: 1px dashed #ccc;
+        }
+
+        [contenteditable="true"]:focus {
+            background-color: #ffffff;
+            outline: 2px solid var(--brand-red);
+            border-radius: 2px;
+        }
+
+        /* Delete Button Styles */
+        .item-row:hover .delete-btn {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body class="font-body text-gray-800 p-4 md:p-8 print:p-0">
+
+    <!-- Control Bar -->
+    <div class="max-w-[210mm] mx-auto mb-6 flex justify-between items-center no-print">
+        <div class="text-sm text-gray-500">
+            <span class="font-bold text-brand-red">Tip:</span> Hover over rows to delete. Click "Add Item" to add new.
+        </div>
+        <button onclick="window.print()"
+            class="bg-brand-red hover:bg-black text-white font-bold py-2 px-6 rounded transition-colors flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            PRINT INVOICE
+        </button>
+    </div>
+
+    <!-- A4 Container -->
+    <div class="a4-page bg-pattern">
+
+        <!-- Header Strip -->
+        <div class="h-4 bg-brand-red w-full flex-shrink-0"></div>
+
+        <!-- Header Content -->
+        <div class="px-12 py-8 flex justify-between items-start flex-shrink-0 flex-no-shrink">
+            <div class="flex flex-col gap-4">
+                <!-- Logo Placement -->
+                <div
+                    class="w-32 h-32 bg-gray-100 flex items-center justify-center overflow-hidden rounded-lg border border-gray-100">
+                    <img src="logo.jpg" alt="Sneaker Canvas BD Logo" class="w-full h-full object-cover"
+                        onerror="this.onerror=null; this.src='E:\\Projects\\invoice\\assets\\logo.jpg';">
+                </div>
+
+                <div class="mt-2">
+                    <h2 class="font-header text-2xl font-bold tracking-tight text-gray-900">SNEAKER CANVAS BD</h2>
+                    <p class="text-sm text-gray-500 font-medium tracking-wider uppercase">Premium Footwear & Streetwear
+                    </p>
+                    <div class="mt-3 text-sm text-gray-600 space-y-1">
+                        <p class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span contenteditable="true">Shop 42, Block C, Dhaka, BD</span>
+                        </p>
+                        <p class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                            <span contenteditable="true">+880 1XXX-XXXXXX</span>
+                        </p>
+                        <p class="flex items-center gap-2">
+                            <svg class="w-4 h-4 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            <span contenteditable="true">contact@sneakercanvasbd.com</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="text-right">
+                <h1 class="font-header text-6xl text-brand-red tracking-tighter opacity-90">INVOICE</h1>
+                <div class="mt-6 inline-block text-left">
+                    <div class="flex justify-between items-center gap-8 border-b border-gray-200 pb-2 mb-2">
+                        <span class="text-gray-500 font-medium uppercase text-xs tracking-wider">Invoice No</span>
+                        <span class="font-header text-xl font-bold" contenteditable="true">#SC-2024-001</span>
+                    </div>
+                    <div class="flex justify-between items-center gap-8">
+                        <span class="text-gray-500 font-medium uppercase text-xs tracking-wider">Date</span>
+                        <span class="font-bold text-gray-800" contenteditable="true">Oct 24, 2024</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr class="border-gray-200 mx-12 flex-shrink-0">
+
+        <!-- Customer Section -->
+        <div class="px-12 py-8 flex-shrink-0">
+            <h3 class="text-brand-red font-header text-lg uppercase tracking-wider mb-4 font-bold">Bill To</h3>
+            <div class="bg-gray-50 p-6 rounded-l-lg border-l-4 border-brand-red w-full md:w-2/3">
+                <div class="grid grid-cols-1 gap-1">
+                    <h4 class="font-bold text-xl text-gray-900 mb-1" contenteditable="true">Customer Name</h4>
+                    <p class="text-gray-600 text-sm" contenteditable="true">Phone: +880 1700-000000</p>
+                    <p class="text-gray-600 text-sm" contenteditable="true">Address: House 12, Road 5, Dhanmondi, Dhaka
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Table -->
+        <div class="px-12 mt-2 flex-grow table-container"> <!-- Class added for print targeting -->
+            <table class="w-full text-left border-collapse" id="invoice-table">
+                <thead>
+                    <tr
+                        class="bg-black text-white font-header uppercase text-sm tracking-wider sticky top-0 bg-black z-10">
+                        <th class="py-4 px-4 rounded-tl-lg w-[45%]">Item Description</th>
+                        <th class="py-4 px-4 text-center w-[15%]">Size</th>
+                        <th class="py-4 px-4 text-center w-[10%]">Qty</th>
+                        <th class="py-4 px-4 text-right w-[15%]">Unit Price</th>
+                        <th class="py-4 px-4 text-right rounded-tr-lg w-[15%]">Total</th>
+                        <th class="w-[5%] no-print"></th>
+                    </tr>
+                </thead>
+                <tbody class="text-sm text-gray-700" id="table-body">
+                    <!-- Item Row Template -->
+                    <tr class="border-b border-gray-100 hover:bg-red-50 transition-colors item-row group">
+                        <td class="py-4 px-4 font-medium align-top">
+                            <div class="text-gray-900 font-bold text-base" contenteditable="true">Air Jordan 1 High OG
+                                "Lost & Found"</div>
+                            <div class="text-xs text-gray-500 mt-1" contenteditable="true">Chicago colorway</div>
+                        </td>
+                        <td class="py-4 px-4 text-center font-mono align-top" contenteditable="true">US 10</td>
+                        <td class="py-4 px-4 text-center font-mono align-top qty" contenteditable="true">1</td>
+                        <td class="py-4 px-4 text-right font-mono align-top price" contenteditable="true">25,000 BDT
+                        </td>
+                        <td class="py-4 px-4 text-right font-bold font-mono text-gray-900 align-top total">25,000 BDT
+                        </td>
+                        <td class="py-4 px-1 text-center align-middle no-print">
+                            <button
+                                class="delete-btn opacity-0 text-red-500 hover:text-red-700 font-bold hover:bg-red-100 p-1 rounded transition-opacity"
+                                title="Delete Row">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+
+                    <tr class="border-b border-gray-100 hover:bg-red-50 transition-colors item-row group">
+                        <td class="py-4 px-4 font-medium align-top">
+                            <div class="text-gray-900 font-bold text-base" contenteditable="true">Yeezy Slide "Pure"
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1" contenteditable="true">Resin</div>
+                        </td>
+                        <td class="py-4 px-4 text-center font-mono align-top" contenteditable="true">US 9</td>
+                        <td class="py-4 px-4 text-center font-mono align-top qty" contenteditable="true">1</td>
+                        <td class="py-4 px-4 text-right font-mono align-top price" contenteditable="true">8,500 BDT</td>
+                        <td class="py-4 px-4 text-right font-bold font-mono text-gray-900 align-top total">8,500 BDT
+                        </td>
+                        <td class="py-4 px-1 text-center align-middle no-print">
+                            <button
+                                class="delete-btn opacity-0 text-red-500 hover:text-red-700 font-bold hover:bg-red-100 p-1 rounded transition-opacity"
+                                title="Delete Row">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                                    stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="mt-4 no-print text-center">
+                <button id="add-row-btn"
+                    class="bg-gray-100 hover:bg-gray-200 text-gray-600 font-semibold py-2 px-4 rounded border border-gray-300 text-sm transition-colors flex items-center gap-2 mx-auto">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Item
+                </button>
+            </div>
+        </div>
+
+        <!-- Summary Section -->
+        <div class="px-12 mt-8 mb-12 flex justify-end flex-shrink-0 flex-no-shrink">
+            <div class="w-full md:w-1/2 lg:w-5/12">
+                <div class="space-y-3">
+                    <div class="flex justify-between text-gray-600 text-sm">
+                        <span class="font-medium">Subtotal</span>
+                        <span class="font-mono font-bold text-gray-900"><span id="subtotal">33,500</span> BDT</span>
+                    </div>
+                    <div class="flex justify-between text-brand-red text-sm">
+                        <span class="font-medium">Discount</span>
+                        <div class="flex items-center justify-end gap-1">
+                            <span>-</span>
+                            <span class="font-mono font-bold focus:bg-red-50" contenteditable="true"
+                                id="discount">0</span>
+                            <span>BDT</span>
+                        </div>
+                    </div>
+                    <div class="flex justify-between text-gray-600 text-sm pb-4 border-b border-gray-300">
+                        <span class="font-medium">Delivery Charge</span>
+                        <div class="flex items-center justify-end gap-1">
+                            <span class="font-mono font-bold focus:bg-gray-50" contenteditable="true"
+                                id="delivery">150</span>
+                            <span>BDT</span>
+                        </div>
+                    </div>
+
+                    <!-- Grand Total -->
+                    <div
+                        class="flex justify-between items-center bg-brand-red text-white p-4 rounded shadow-md transform origin-right">
+                        <span class="font-header uppercase tracking-widest text-lg font-bold">Total</span>
+                        <span class="font-header text-2xl font-bold"><span id="grand-total">33,650</span> BDT</span>
+                    </div>
+                </div>
+
+                <!-- Payment Info -->
+                <div class="mt-8 text-right">
+                    <p class="text-xs uppercase tracking-widest text-gray-400 mb-1">Payment Method</p>
+                    <p class="font-bold text-gray-800" contenteditable="true">bKash / Cash on Delivery</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-auto bg-gray-900 text-white px-12 py-6 relative overflow-hidden flex-shrink-0 flex-no-shrink">
+            <!-- Decorative diagonal slice -->
+            <div class="absolute top-0 left-0 w-24 h-full bg-brand-red skew-x-12 -ml-8 opacity-90"></div>
+
+            <div class="relative z-10 flex justify-between items-center">
+                <div class="pl-8">
+                    <p class="font-header text-xl tracking-wider uppercase font-bold">Thank You for Your Support</p>
+                    <p class="text-gray-400 text-sm mt-1">Keep walking fresh. Tag us on socials!</p>
+                </div>
+                <div class="text-right text-gray-400 text-xs">
+                    <p class="mb-1">No returns after 3 days.</p>
+                    <p>Original box required for exchanges.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Red Strip -->
+        <div class="h-2 bg-brand-red w-full flex-shrink-0"></div>
+    </div>
+
+    <!-- Automatic Calculation Script -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const tableBody = document.getElementById('table-body');
+            const subtotalEl = document.getElementById('subtotal');
+            const discountEl = document.getElementById('discount');
+            const deliveryEl = document.getElementById('delivery');
+            const grandTotalEl = document.getElementById('grand-total');
+            const addRowBtn = document.getElementById('add-row-btn');
+
+            function parseNumber(str) {
+                if (!str) return 0;
+                const clean = str.replace(/[^\d.-]/g, '');
+                const num = parseFloat(clean);
+                return isNaN(num) ? 0 : num;
+            }
+
+            function formatNumber(num) {
+                return num.toLocaleString('en-US');
+            }
+
+            function setupRow(row) {
+                const qtyCell = row.querySelector('.qty');
+                const priceCell = row.querySelector('.price');
+                const totalCell = row.querySelector('.total');
+                const deleteBtn = row.querySelector('.delete-btn');
+
+                if (!qtyCell || !priceCell || !totalCell) return;
+
+                const updateRow = () => {
+                    const qty = parseNumber(qtyCell.innerText);
+                    const price = parseNumber(priceCell.innerText);
+                    const total = qty * price;
+                    totalCell.innerText = formatNumber(total) + ' BDT';
+                    calculateTotals();
+                };
+
+                row.addEventListener('input', updateRow);
+
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', () => {
+                        row.remove();
+                        calculateTotals();
+                    });
+                }
+            }
+
+            function calculateTotals() {
+                const rows = document.querySelectorAll('.item-row');
+                let subtotal = 0;
+
+                rows.forEach(row => {
+                    const totalCell = row.querySelector('.total');
+                    if (totalCell) {
+                        subtotal += parseNumber(totalCell.innerText);
+                    }
+                });
+
+                subtotalEl.innerText = formatNumber(subtotal);
+
+                const discount = parseNumber(discountEl.innerText);
+                const delivery = parseNumber(deliveryEl.innerText);
+
+                const grandTotal = subtotal - discount + delivery;
+                grandTotalEl.innerText = formatNumber(grandTotal);
+            }
+
+            function addNewRow() {
+                const newRow = document.createElement('tr');
+                newRow.className = 'border-b border-gray-100 hover:bg-red-50 transition-colors item-row group';
+                newRow.innerHTML = `
+                    <td class="py-4 px-4 font-medium align-top">
+                        <div class="text-gray-900 font-bold text-base" contenteditable="true">New Item</div>
+                        <div class="text-xs text-gray-500 mt-1" contenteditable="true">Description</div>
+                    </td>
+                    <td class="py-4 px-4 text-center font-mono align-top" contenteditable="true">-</td>
+                    <td class="py-4 px-4 text-center font-mono align-top qty" contenteditable="true">0</td>
+                    <td class="py-4 px-4 text-right font-mono align-top price" contenteditable="true">0 BDT</td>
+                    <td class="py-4 px-4 text-right font-bold font-mono text-gray-900 align-top total">0 BDT</td>
+                    <td class="py-4 px-1 text-center align-middle no-print">
+                        <button class="delete-btn opacity-0 text-red-500 hover:text-red-700 font-bold hover:bg-red-100 p-1 rounded transition-opacity" title="Delete Row">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(newRow);
+                setupRow(newRow);
+            }
+
+            // Bind listeners to existing rows
+            const rows = document.querySelectorAll('.item-row');
+            rows.forEach(setupRow);
+
+            // Bind global listeners
+            discountEl.addEventListener('input', calculateTotals);
+            deliveryEl.addEventListener('input', calculateTotals);
+            addRowBtn.addEventListener('click', addNewRow);
+        });
+    </script>
+</body>
+
+</html>
