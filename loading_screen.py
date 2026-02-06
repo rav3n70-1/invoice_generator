@@ -54,7 +54,7 @@ class LoadingScreen:
         # Subtitle
         subtitle = tk.Label(
             frame,
-            text="Management System v3.1",
+            text="Developed by R4V3N",
             font=("Segoe UI", 12),
             fg="#a0a0a0",
             bg="#1e1e2e"

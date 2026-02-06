@@ -1,5 +1,5 @@
 """
-Invoice Generator & Inventory Manager v3.1
+Invoice Generator & Inventory Manager v1.1
 Features: Header Bar, Status Light, Import/Export, Inventory CRUD + Description.
 """
 
@@ -11,12 +11,14 @@ import time
 from datetime import datetime
 from invoice_generator import InvoiceGenerator
 from data_manager import DataManager
+from expense_tab import ExpenseTab
+import webbrowser
 from loading_screen import LoadingScreen
 
 # Fix Windows taskbar icon
 try:
     import ctypes
-    myappid = 'sneakercanvasbd.invoicemanager.v3.1'  # arbitrary string
+    myappid = 'sneakercanvasbd.invoicemanager.v1.1'  # arbitrary string
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 except:
     pass
@@ -30,7 +32,7 @@ DEFAULT_SIGN = os.path.join(SCRIPT_DIR, "assets", "SIGN JOY.png")
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Sneaker Canvas BD - Management System v3.1")
+        self.root.title("SneakerCanvasBD - Management System v1.1")
         self.root.geometry("1300x850")
         self.root.minsize(1000, 700)
         
@@ -67,6 +69,11 @@ class MainApp:
         # === TOP BAR (Connection & Data) ===
         self._create_top_bar()
         
+        # Developer Info (Packed FIRST to ensure visibility at bottom)
+        dev_lbl = ttk.Label(self.root, text="Developed by R4V3N", background=self.c['bg'], foreground=self.c['text_dim'], font=("Segoe UI", 8), cursor="hand2")
+        dev_lbl.pack(side="bottom", pady=5)
+        dev_lbl.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/rav3n70-1"))
+        
         # Main Layout
         self.main_container = ttk.Frame(self.root, style="Main.TFrame")
         self.main_container.pack(fill='both', expand=True)
@@ -78,9 +85,12 @@ class MainApp:
         self.invoice_tab = InvoiceTab(self.notebook, self)
         self.inventory_tab = InventoryTab(self.notebook, self)
         self.history_tab = InvoiceHistoryTab(self.notebook, self)
+        self.expense_tab = ExpenseTab(self.notebook, self)
+        
         self.notebook.add(self.invoice_tab, text="   🧾 INVOICE GENERATOR   ")
         self.notebook.add(self.inventory_tab, text="   👟 INVENTORY & STOCK   ")
         self.notebook.add(self.history_tab, text="   📋 INVOICE HISTORY   ")
+        self.notebook.add(self.expense_tab, text="   💸 EXPENSES   ")
         
         # Load config
         self._load_config()
@@ -120,6 +130,9 @@ class MainApp:
         tk.Button(bar, text="⬇ Import Data", command=self._import_data, bg=self.c['input'], fg='white', relief='flat').pack(side="right", padx=5)
         tk.Button(bar, text="⬆ Export Data", command=self._export_data, bg=self.c['input'], fg='white', relief='flat').pack(side="right", padx=5)
         
+        # Settings
+        tk.Button(bar, text="⚙ Settings", command=self._open_settings, bg=self.c['input'], fg='white', relief='flat').pack(side="right", padx=5)
+        
         # Connection Status
         self.status_canvas = tk.Canvas(bar, width=20, height=20, bg=self.c['sidebar'], highlightthickness=0)
         self.status_canvas.pack(side="right", padx=(15, 5))
@@ -128,6 +141,50 @@ class MainApp:
         
         # Check connection initially
         self.check_connection()
+
+    def _open_settings(self):
+        """Open settings window"""
+        top = tk.Toplevel(self.root)
+        top.title("Settings")
+        top.geometry("600x300")
+        top.configure(bg=self.c['bg'])
+        
+        ttk.Label(top, text="Application Settings", style="Header.TLabel").pack(pady=20)
+        
+        # Data Path Section
+        path_frame = ttk.Frame(top, style="Card.TFrame", padding=15)
+        path_frame.pack(fill="x", padx=20)
+        
+        ttk.Label(path_frame, text="Data Storage Location", style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(path_frame, text="Current Path:", style="Dim.TLabel").pack(anchor="w", pady=(5, 0))
+        
+        self.lbl_path = ttk.Label(path_frame, text=self.dm.data_dir, background=self.c['input'], foreground='white', padding=5)
+        self.lbl_path.pack(fill="x", pady=5)
+        
+        ttk.Label(path_frame, text="To sync data between PCs, select a folder in your OneDrive or Google Drive.", 
+                 style="Dim.TLabel", font=("Segoe UI", 8, "italic"), wraplength=500).pack(anchor="w")
+        
+        tk.Button(path_frame, text="📂 Change Data Folder", command=lambda: self._change_data_path(top),
+                 bg=self.c['accent'], fg=self.c['sidebar'], relief='flat').pack(anchor="e", pady=10)
+
+    def _change_data_path(self, top_window):
+        """Change the data storage path"""
+        new_path = filedialog.askdirectory(title="Select New Data Folder")
+        if new_path:
+            if messagebox.askyesno("Confirm Change", f"Change data folder to:\n{new_path}\n\nThe application will reload data from this location."):
+                if self.dm.set_data_folder(new_path):
+                    self.lbl_path.config(text=new_path)
+                    messagebox.showinfo("Success", "Data folder updated! Application will now use this location.")
+                    # Refresh all tabs
+                    self.inventory_tab._refresh()
+                    if hasattr(self, 'history_tab'):
+                        self.history_tab._refresh()
+                    if hasattr(self, 'expense_tab'):
+                        self.expense_tab._refresh()
+                    self.check_connection()
+                    top_window.destroy()  # Close settings window
+                else:
+                    messagebox.showerror("Error", "Could not set data path.")
 
     def check_connection(self):
         connected = self.dm.check_connection()
@@ -518,23 +575,66 @@ class InvoiceTab(ttk.Frame):
 
 
 
+class ScrollableFrame(ttk.Frame):
+    def __init__(self, container, *args, **kwargs):
+        super().__init__(container, *args, **kwargs)
+        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = ttk.Frame(self.canvas)
+
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(
+                scrollregion=self.canvas.bbox("all")
+            )
+        )
+
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        
+        # Resize frame width to canvas width
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+    
+    def _on_canvas_configure(self, event):
+        self.canvas.itemconfig(self.canvas_window, width=event.width)
+
 class InventoryTab(ttk.Frame):
     def __init__(self, parent, app):
         super().__init__(parent, style="Main.TFrame")
         self.app = app
         self.c = app.c
         self.view_mode = tk.StringVar(value="grouped")  # "grouped" or "individual"
+        self.editing_item_ref = None # Store reference to original item when editing: {'name': '...', 'size': '...'}
         self._create_ui()
         
     def _create_ui(self):
         row = ttk.Frame(self, style="Main.TFrame")
         row.pack(fill="both", expand=True, padx=20, pady=20)
         
-        # --- LEFT (Form) ---
-        left = ttk.Frame(row, style="Card.TFrame", padding=20)
-        left.pack(side="left", fill="y", padx=(0, 20))
+        # --- LEFT (Form) - SCROLLABLE ---
+        # Container for the scrollable area
+        left_container = ttk.Frame(row, style="Card.TFrame", padding=2)
+        left_container.pack(side="left", fill="y", padx=(0, 20), anchor="n") 
+        # Note: 'anchor=n' helps keep it top-aligned, 'fill=y' makes it take full height
         
-        ttk.Label(left, text="MANAGE ITEM", style="CardTitle.TLabel").pack(pady=(0, 20))
+        # The Scrollable Wrapper
+        self.scroll_wrapper = ScrollableFrame(left_container, style="Card.TFrame")
+        self.scroll_wrapper.pack(fill="both", expand=True)
+        
+        # Match canvas bg to card
+        self.scroll_wrapper.canvas.configure(bg=self.c['card'])
+        self.scroll_wrapper.scrollable_frame.configure(style="Card.TFrame")
+        
+        # usage: parent for widgets is now self.scroll_wrapper.scrollable_frame
+        left = ttk.Frame(self.scroll_wrapper.scrollable_frame, style="Card.TFrame", padding=20)
+        left.pack(fill="x", expand=True)
+
+        self.form_header = ttk.Label(left, text="ADD NEW ITEM", style="CardTitle.TLabel")
+        self.form_header.pack(pady=(0, 20))
         
         # Name
         ttk.Label(left, text="Product Name", style="Dim.TLabel").pack(anchor="w")
@@ -546,10 +646,23 @@ class InventoryTab(ttk.Frame):
         self.desc = tk.StringVar()
         tk.Entry(left, textvariable=self.desc, bg=self.c['input'], fg='white', relief='flat').pack(fill="x", pady=(5, 15))
         
-        # Price
-        ttk.Label(left, text="Price", style="Dim.TLabel").pack(anchor="w")
-        self.price = tk.StringVar()
-        tk.Entry(left, textvariable=self.price, bg=self.c['input'], fg='white', relief='flat').pack(fill="x", pady=(5, 15))
+        # Prices
+        grid_price = ttk.Frame(left, style="Card.TFrame")
+        grid_price.pack(fill="x", pady=(0, 15))
+        
+        # Selling Price
+        f1 = ttk.Frame(grid_price, style="Card.TFrame")
+        f1.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        ttk.Label(f1, text="Selling Price", style="Dim.TLabel").pack(anchor="w")
+        self.price = tk.DoubleVar()
+        tk.Entry(f1, textvariable=self.price, bg=self.c['input'], fg='white', relief='flat').pack(fill="x", pady=5)
+        
+        # Buying Price
+        f2 = ttk.Frame(grid_price, style="Card.TFrame")
+        f2.pack(side="left", fill="x", expand=True, padx=(5, 0))
+        ttk.Label(f2, text="Buying Price", style="Dim.TLabel").pack(anchor="w")
+        self.buy_price = tk.DoubleVar()
+        tk.Entry(f2, textvariable=self.buy_price, bg=self.c['input'], fg='white', relief='flat').pack(fill="x", pady=5)
         
         # Size Grid
         ttk.Label(left, text="Stock per Size:", style="Dim.TLabel").pack(anchor="w", pady=(5, 10))
@@ -568,7 +681,10 @@ class InventoryTab(ttk.Frame):
             c += 1
             if c > 2: c = 0; r += 1
             
-        tk.Button(left, text="SAVE / UPDATE", command=self._save, bg=self.c['success'], fg=self.c['sidebar'], font=("Segoe UI", 10, "bold"), relief="flat", pady=10).pack(fill="x", pady=20)
+        self.btn_save = tk.Button(left, text="SAVE / ADD", command=self._save, bg=self.c['success'], fg=self.c['sidebar'], font=("Segoe UI", 10, "bold"), relief="flat", pady=10)
+        self.btn_save.pack(fill="x", pady=(20, 5))
+        
+        tk.Button(left, text="✕ CANCEL / NEW", command=self._clear_form, bg=self.c['card'], fg='white', relief="flat").pack(fill="x")
         
         # --- RIGHT (Table) ---
         right = ttk.Frame(row, style="Main.TFrame")
@@ -589,18 +705,34 @@ class InventoryTab(ttk.Frame):
                  command=lambda: self._switch_view("individual"),
                  bg=self.c['card'], fg='white', relief='flat', padx=10).pack(side="left", padx=2)
         
-        self.tree = ttk.Treeview(right, columns=("Name", "Desc", "Price", "Sizes", "Total Stock"), show="headings")
-        self.tree.heading("Name", text="Product Name"); self.tree.heading("Desc", text="Description")
-        self.tree.heading("Price", text="Price"); self.tree.heading("Sizes", text="Sizes Available"); 
-        self.tree.heading("Total Stock", text="Total Stock")
-        self.tree.column("Sizes", width=200); self.tree.column("Total Stock", width=80, anchor="center")
-        self.tree.column("Price", width=80); self.tree.column("Desc", width=150)
+        cols = ("Name", "Desc", "Sell", "Buy", "Margin", "Sizes", "Stock")
+        self.tree = ttk.Treeview(right, columns=cols, show="headings")
+        self.tree.heading("Name", text="Product Name")
+        self.tree.heading("Desc", text="Description")
+        self.tree.heading("Sell", text="Sell Price")
+        self.tree.heading("Buy", text="Buy Price")
+        self.tree.heading("Margin", text="Margin")
+        self.tree.heading("Sizes", text="Sizes")
+        self.tree.heading("Stock", text="Stock")
+        
+        self.tree.column("Name", width=150)
+        self.tree.column("Desc", width=100)
+        self.tree.column("Sell", width=70)
+        self.tree.column("Buy", width=70)
+        self.tree.column("Margin", width=80)
+        self.tree.column("Sizes", width=150)
+        self.tree.column("Stock", width=60, anchor="center")
+        
         self.tree.pack(fill="both", expand=True)
         
         # Controls
         ctrl = ttk.Frame(right, style="Main.TFrame")
         ctrl.pack(fill="x", pady=10)
         tk.Button(ctrl, text="REFRESH", command=self._refresh, bg=self.c['card'], fg='white', relief='flat').pack(side="left", padx=5)
+        
+        # Explicit Edit Button (Functional duplicate of select, but visual reassurance)
+        tk.Button(ctrl, text="✏ EDIT SELECTED", command=lambda: self._on_select(None), bg=self.c['accent'], fg='white', relief='flat').pack(side="left", padx=5)
+        
         self.btn_del = tk.Button(ctrl, text="DELETE SELECTED", command=self._delete, bg=self.c['error'], fg=self.c['sidebar'], relief='flat')
         self.btn_del.pack(side="right", padx=5)
         
@@ -608,69 +740,93 @@ class InventoryTab(ttk.Frame):
         self._refresh()
         
     def _save(self):
-        n = self.name.get(); p = self.price.get(); d = self.desc.get()
-        if not n or not p: return
+        n = self.name.get(); p = self.price.get(); bp = self.buy_price.get(); d = self.desc.get()
+        if not n: return
         try:
             updates = 0
+            
+            # Renaming logic
+            if self.editing_item_ref and self.editing_item_ref['name'] != n:
+                if messagebox.askyesno("Rename", f"Rename '{self.editing_item_ref['name']}' to '{n}'?\nThis will move stock to the new name."):
+                    inventory = self.app.dm.get_inventory()
+                    for item in inventory:
+                        if item['name'] == self.editing_item_ref['name']:
+                             if self.view_mode.get() == "grouped" or (str(item['size']) == str(self.editing_item_ref.get('size'))):
+                                self.app.dm.delete_product(item['name'], item['size'])
+            
             for s, v in self.size_vars.items():
                 stock = int(v.get() or 0)
-                if stock > 0: # Only save if stock > 0 or it's an update? Logic is simple for now: add if > 0
-                    self.app.dm.add_product({'name': n, 'description': d, 'price': float(p), 'size': str(s), 'stock': stock})
+                if stock > 0 or (self.editing_item_ref and str(s) == str(self.editing_item_ref.get('size', ''))):
+                    self.app.dm.add_product({
+                        'name': n, 'description': d, 'price': float(p), 'buying_price': float(bp), 
+                        'size': str(s), 'stock': stock
+                    })
                     updates += 1
+            
             if updates:
                 self._refresh()
-                messagebox.showinfo("Success", f"Updated {updates} size variants.")
+                self._clear_form()
+                messagebox.showinfo("Success", f"Saved {updates} records.")
             else: messagebox.showwarning("Notice", "No stock quantities entered.")
         except Exception as e: messagebox.showerror("Error", str(e))
 
+    def _clear_form(self):
+        self.name.set("")
+        self.desc.set("")
+        self.price.set(0)
+        self.buy_price.set(0)
+        for v in self.size_vars.values(): v.set("0")
+        self.editing_item_ref = None
+        self.btn_save.config(text="SAVE / ADD", bg=self.c['success'])
+        self.form_header.config(text="ADD NEW ITEM", foreground="white")
 
     def _switch_view(self, mode):
-        """Switch between grouped and individual view modes"""
         self.view_mode.set(mode)
         self._refresh()
+        self._clear_form()
     
     def _refresh(self):
-        """Refresh the inventory display based on current view mode"""
-        for i in self.tree.get_children(): 
-            self.tree.delete(i)
-        
+        for i in self.tree.get_children(): self.tree.delete(i)
         inventory = self.app.dm.get_inventory()
         
         if self.view_mode.get() == "grouped":
-            # Group products by name
             grouped = {}
             for item in inventory:
                 name = item['name']
                 if name not in grouped:
                     grouped[name] = {
-                        'description': item['description'],
-                        'price': item['price'],
-                        'sizes': {},
+                        'description': item.get('description',''), 
+                        'price': item['price'], 
+                        'buying_price': item.get('buying_price', 0),
+                        'sizes': {}, 
                         'total_stock': 0
                     }
                 grouped[name]['sizes'][str(item['size'])] = item['stock']
                 grouped[name]['total_stock'] += item['stock']
             
-            # Display grouped data
             for name, data in sorted(grouped.items()):
-                # Format sizes as "36:2, 37:3, 38:4..."
                 size_str = ", ".join([f"{s}:{q}" for s, q in sorted(data['sizes'].items(), key=lambda x: int(x[0]))])
+                bp = data['buying_price']
+                sp = data['price']
+                margin = sp - bp
+                margin_pct = (margin / sp * 100) if sp > 0 else 0
+                
                 self.tree.insert("", "end", values=(
-                    name, 
-                    data['description'], 
-                    f"{data['price']:.0f} BDT",
-                    size_str,
-                    data['total_stock']
+                    name, data['description'], f"{sp:.0f}", f"{bp:.0f}",
+                    f"{margin:.0f} ({margin_pct:.0f}%)",
+                    size_str, data['total_stock']
                 ))
         else:
-            # Individual view - show each size separately
             for item in inventory:
+                bp = item.get('buying_price', 0)
+                sp = item['price']
+                margin = sp - bp
+                margin_pct = (margin / sp * 100) if sp > 0 else 0
+                
                 self.tree.insert("", "end", values=(
-                    item['name'], 
-                    item['description'], 
-                    f"{item['price']:.0f} BDT",
-                    f"Size {item['size']}",
-                    item['stock']
+                    item['name'], item.get('description',''), f"{sp:.0f}", f"{bp:.0f}",
+                    f"{margin:.0f} ({margin_pct:.0f}%)",
+                    f"Size {item['size']}", item['stock']
                 ))
 
     def _on_select(self, e):
@@ -678,82 +834,54 @@ class InventoryTab(ttk.Frame):
         if not sel: return
         item = self.tree.item(sel[0])['values']
         
+        self.btn_save.config(text="UPDATE ITEM", bg=self.c['accent'])
+        self.form_header.config(text=f"EDITING: {item[0]}", foreground=self.c['accent'])
+        self.name.set(item[0])
+        self.desc.set(item[1])
+        self.price.set(item[2])
+        self.buy_price.set(item[3])
+        
+        # Reset sizes
+        for v in self.size_vars.values(): v.set("0")
+        
+        inventory = self.app.dm.get_inventory()
         if self.view_mode.get() == "grouped":
-            # In grouped view, load all size data for this product
-            self.name.set(item[0])
-            self.desc.set(item[1])
-            # Remove " BDT" from price
-            price_str = str(item[2]).replace(" BDT", "")
-            self.price.set(price_str)
-            
-            # Clear all sizes first
-            for v in self.size_vars.values(): 
-                v.set("0")
-            
-            # Load all sizes for this product from inventory
-            inventory = self.app.dm.get_inventory()
+            self.editing_item_ref = {'name': item[0], 'size': None} # Group Edit
             for inv_item in inventory:
                 if inv_item['name'] == item[0]:
-                    size = int(inv_item['size'])
-                    if size in self.size_vars:
-                        self.size_vars[size].set(str(inv_item['stock']))
+                    s = int(inv_item['size'])
+                    if s in self.size_vars: self.size_vars[s].set(str(inv_item['stock']))
         else:
-            # Individual view - same as before
-            self.name.set(item[0])
-            self.desc.set(item[1])
-            price_str = str(item[2]).replace(" BDT", "")
-            self.price.set(price_str)
-            
-            # Clear sizes first
-            for v in self.size_vars.values(): 
-                v.set("0")
-            
-            # Extract size from "Size XX" format
-            size_text = str(item[3])
-            if "Size " in size_text:
-                size = int(size_text.replace("Size ", ""))
-                stock = item[4]
-                if size in self.size_vars:
-                    self.size_vars[size].set(str(stock))
+            # Individual
+            size_txt = str(item[5]).replace("Size ", "")
+            self.editing_item_ref = {'name': item[0], 'size': size_txt}
+            try:
+                s = int(size_txt)
+                if s in self.size_vars: self.size_vars[s].set(item[6])
+            except: pass
 
     def _delete(self):
         sel = self.tree.selection()
-        if not sel: 
-            messagebox.showwarning("No Selection", "Please select an item to delete.")
-            return
+        if not sel: return
         
-        try:
+        if messagebox.askyesno("Confirm", "Delete selected item?"):
+            item = self.tree.item(sel[0])['values']
+            name = item[0]
+            deleted = 0
+            
+            inventory = self.app.dm.get_inventory()
+            
             if self.view_mode.get() == "grouped":
-                # In grouped view, ask to delete all sizes of this product
-                item = self.tree.item(sel[0])['values']
-                product_name = item[0]
-                if messagebox.askyesno("Confirm", f"Delete all sizes of '{product_name}'?"):
-                    inventory = self.app.dm.get_inventory()
-                    deleted_count = 0
-                    for inv_item in inventory:
-                        if inv_item['name'] == product_name:
-                            if self.app.dm.delete_product(inv_item['name'], inv_item['size']):
-                                deleted_count += 1
-                    self._refresh()
-                    messagebox.showinfo("Success", f"Deleted {deleted_count} size variants of '{product_name}'")
+                 for inv_item in inventory:
+                    if inv_item['name'] == name:
+                        if self.app.dm.delete_product(name, inv_item['size']): deleted += 1
             else:
-                # Individual view - delete specific size
-                if messagebox.askyesno("Confirm", "Delete selected item?"):
-                    item = self.tree.item(sel[0])['values']
-                    product_name = item[0]
-                    # Extract size from "Size XX" format
-                    size_text = str(item[3])
-                    if "Size " in size_text:
-                        size = size_text.replace("Size ", "")
-                        if self.app.dm.delete_product(product_name, size):
-                            self._refresh()
-                            messagebox.showinfo("Success", f"Deleted {product_name} Size {size}")
-                        else:
-                            messagebox.showerror("Error", "Failed to delete item")
-                    else:
-                        messagebox.showerror("Error", f"Invalid size format: {size_text}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Delete operation failed: {str(e)}")
+                 size = str(item[5]).replace("Size ", "")
+                 if self.app.dm.delete_product(name, size): deleted = 1
+                 
+            self._refresh()
+            self._clear_form()
+            messagebox.showinfo("Success", f"Deleted {deleted} items.")
 
 class InvoiceHistoryTab(ttk.Frame):
     def __init__(self, parent, app):
