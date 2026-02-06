@@ -1,6 +1,6 @@
 """
-Invoice Generator & Inventory Manager v1.1
-Features: Header Bar, Status Light, Import/Export, Inventory CRUD + Description.
+Invoice Generator & Inventory Manager v2.0
+Features: Dashboard, Analytics, Enhanced Inventory, Status Workflow, Returns
 """
 
 import tkinter as tk
@@ -12,6 +12,11 @@ from datetime import datetime
 from invoice_generator import InvoiceGenerator
 from data_manager import DataManager
 from expense_tab import ExpenseTab
+from dashboard_tab import DashboardTab
+from ui_components import (
+    ToastNotification, ConfirmDialog, LoadingSpinner, 
+    KeyboardShortcuts, TreeviewHelper, show_toast, confirm_action
+)
 import webbrowser
 from loading_screen import LoadingScreen
 
@@ -32,9 +37,9 @@ DEFAULT_SIGN = os.path.join(SCRIPT_DIR, "assets", "SIGN JOY.png")
 class MainApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("SneakerCanvasBD - Management System v1.1")
-        self.root.geometry("1300x850")
-        self.root.minsize(1000, 700)
+        self.root.title("SneakerCanvasBD - Management System v2.0")
+        self.root.geometry("1400x900")
+        self.root.minsize(1100, 750)
         
         # Set program icon (both window and taskbar)
         try:
@@ -45,19 +50,19 @@ class MainApp:
         except Exception as e:
             print(f"Could not set icon: {e}")
         
-        # Colors
+        # Colors - Refined dark theme with deep blue/gray
         self.c = {
-            'bg': '#1e1e2e',
-            'sidebar': '#181825',
-            'card': '#313244',
-            'accent': '#f38ba8',       # Red/Pinkish
-            'accent_hover': '#d27b91',
-            'text': '#cdd6f4',
-            'text_dim': '#a6adc8',
-            'input': '#45475a',
-            'success': '#a6e3a1',
-            'warning': '#f9e2af',
-            'error': '#f38ba8'
+            'bg': '#0f172a',           # Deep navy background
+            'sidebar': '#1e293b',      # Slate sidebar
+            'card': '#334155',         # Card gray
+            'accent': '#ef4444',       # Brand red
+            'accent_hover': '#dc2626',
+            'text': '#f1f5f9',         # Light text
+            'text_dim': '#94a3b8',     # Muted text
+            'input': '#475569',        # Input background
+            'success': '#22c55e',      # Green
+            'warning': '#f59e0b',      # Amber
+            'error': '#dc2626'         # Red
         }
         
         self.style = ttk.Style()
@@ -86,14 +91,54 @@ class MainApp:
         self.inventory_tab = InventoryTab(self.notebook, self)
         self.history_tab = InvoiceHistoryTab(self.notebook, self)
         self.expense_tab = ExpenseTab(self.notebook, self)
+        self.dashboard_tab = DashboardTab(self.notebook, self)
         
-        self.notebook.add(self.invoice_tab, text="   🧾 INVOICE GENERATOR   ")
-        self.notebook.add(self.inventory_tab, text="   👟 INVENTORY & STOCK   ")
-        self.notebook.add(self.history_tab, text="   📋 INVOICE HISTORY   ")
+        # Add tabs - Dashboard first for analytics-driven approach
+        self.notebook.add(self.dashboard_tab, text="   📊 DASHBOARD   ")
+        self.notebook.add(self.invoice_tab, text="   🧾 INVOICE   ")
+        self.notebook.add(self.inventory_tab, text="   👟 INVENTORY   ")
+        self.notebook.add(self.history_tab, text="   📋 HISTORY   ")
         self.notebook.add(self.expense_tab, text="   💸 EXPENSES   ")
+        
+        # Setup keyboard shortcuts
+        KeyboardShortcuts.setup_common_shortcuts(
+            self.root,
+            new_callback=self._on_new,
+            save_callback=self._on_save,
+            cancel_callback=self._on_cancel,
+            refresh_callback=self._on_refresh
+        )
         
         # Load config
         self._load_config()
+    
+    def _on_new(self):
+        """Handle Ctrl+N - New invoice"""
+        self.notebook.select(1)  # Switch to invoice tab
+    
+    def _on_save(self):
+        """Handle Ctrl+S - Context-sensitive save"""
+        current = self.notebook.index(self.notebook.select())
+        if current == 2:  # Inventory tab
+            self.inventory_tab._save()
+    
+    def _on_cancel(self):
+        """Handle Esc - Cancel current edit"""
+        current = self.notebook.index(self.notebook.select())
+        if current == 2:  # Inventory tab
+            self.inventory_tab._clear_form()
+    
+    def _on_refresh(self):
+        """Handle F5 - Refresh current view"""
+        current = self.notebook.index(self.notebook.select())
+        if current == 0:
+            self.dashboard_tab._refresh()
+        elif current == 2:
+            self.inventory_tab._refresh()
+        elif current == 3:
+            self.history_tab._refresh()
+        elif current == 4:
+            self.expense_tab._refresh()
 
     def _setup_styles(self):
         self.root.configure(bg=self.c['bg'])
@@ -754,9 +799,25 @@ class InventoryTab(ttk.Frame):
                              if self.view_mode.get() == "grouped" or (str(item['size']) == str(self.editing_item_ref.get('size'))):
                                 self.app.dm.delete_product(item['name'], item['size'])
             
+            # Get existing sizes for this product when editing in grouped mode
+            existing_sizes = set()
+            if self.editing_item_ref and self.view_mode.get() == "grouped":
+                inventory = self.app.dm.get_inventory()
+                for item in inventory:
+                    if item['name'] == self.editing_item_ref['name']:
+                        existing_sizes.add(str(item['size']))
+            
             for s, v in self.size_vars.items():
                 stock = int(v.get() or 0)
-                if stock > 0 or (self.editing_item_ref and str(s) == str(self.editing_item_ref.get('size', ''))):
+                is_editing_size = (
+                    self.editing_item_ref and (
+                        str(s) == str(self.editing_item_ref.get('size', '')) or
+                        str(s) in existing_sizes  # Include all existing sizes when grouped editing
+                    )
+                )
+                
+                # Save if stock > 0 OR if we're editing this size (to allow updating to 0)
+                if stock > 0 or is_editing_size:
                     self.app.dm.add_product({
                         'name': n, 'description': d, 'price': float(p), 'buying_price': float(bp), 
                         'size': str(s), 'stock': stock
@@ -1122,13 +1183,221 @@ class InvoiceHistoryTab(ttk.Frame):
             ttk.Label(content, text=f"Transaction ID: {invoice_data.get('transaction_id', '')}", style="Label.TLabel").pack(anchor="w")
     
     def _edit_invoice(self):
-        """Edit selected invoice (to be implemented with edit dialog)"""
+        """Edit selected invoice with a dialog"""
         sel = self.tree.selection()
         if not sel:
             messagebox.showwarning("No Selection", "Please select an invoice to edit.")
             return
         
-        messagebox.showinfo("Coming Soon", "Edit functionality will open a dialog to modify invoice details and auto-regenerate the PDF.")
+        invoice_number = self.tree.item(sel[0])['values'][0]
+        invoice_data = self.app.dm.get_invoice(invoice_number)
+        
+        if not invoice_data:
+            messagebox.showerror("Error", "Invoice data not found!")
+            return
+        
+        # Create edit dialog
+        edit_win = tk.Toplevel(self.parent)
+        edit_win.title(f"Edit Invoice - {invoice_number}")
+        edit_win.geometry("700x800")
+        edit_win.configure(bg=self.c['bg'])
+        # Allow window to be minimized/maximized (don't use transient)
+        edit_win.grab_set()  # Modal behavior - focus stays on this window
+        
+        # Main scrollable frame
+        canvas = tk.Canvas(edit_win, bg=self.c['bg'], highlightthickness=0)
+        scrollbar = ttk.Scrollbar(edit_win, orient="vertical", command=canvas.yview)
+        content = ttk.Frame(canvas, style="Main.TFrame")
+        
+        content.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=content, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True, padx=20, pady=20)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Header
+        ttk.Label(content, text=f"✏️ EDIT INVOICE: {invoice_number}", style="Header.TLabel").pack(anchor="w", pady=(0, 20))
+        
+        # Customer Info Section
+        cust_frame = tk.Frame(content, bg=self.c['card'], padx=15, pady=15)
+        cust_frame.pack(fill="x", pady=(0, 15))
+        
+        ttk.Label(cust_frame, text="CUSTOMER INFO", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        
+        # Customer Name
+        ttk.Label(cust_frame, text="Name:", style="Label.TLabel").grid(row=1, column=0, sticky="w", pady=5)
+        name_var = tk.StringVar(value=invoice_data.get('customer_name', ''))
+        tk.Entry(cust_frame, textvariable=name_var, bg=self.c['input'], fg='white', insertbackground='white', font=("Segoe UI", 10), width=40).grid(row=1, column=1, sticky="w", pady=5, padx=(10, 0))
+        
+        # Phone
+        ttk.Label(cust_frame, text="Phone:", style="Label.TLabel").grid(row=2, column=0, sticky="w", pady=5)
+        phone_var = tk.StringVar(value=invoice_data.get('customer_phone', ''))
+        tk.Entry(cust_frame, textvariable=phone_var, bg=self.c['input'], fg='white', insertbackground='white', font=("Segoe UI", 10), width=40).grid(row=2, column=1, sticky="w", pady=5, padx=(10, 0))
+        
+        # Address
+        ttk.Label(cust_frame, text="Address:", style="Label.TLabel").grid(row=3, column=0, sticky="w", pady=5)
+        addr_var = tk.StringVar(value=invoice_data.get('customer_address', ''))
+        tk.Entry(cust_frame, textvariable=addr_var, bg=self.c['input'], fg='white', insertbackground='white', font=("Segoe UI", 10), width=40).grid(row=3, column=1, sticky="w", pady=5, padx=(10, 0))
+        
+        # Products Section
+        prod_frame = tk.Frame(content, bg=self.c['card'], padx=15, pady=15)
+        prod_frame.pack(fill="x", pady=(0, 15))
+        
+        ttk.Label(prod_frame, text="PRODUCTS", style="CardTitle.TLabel").pack(anchor="w", pady=(0, 10))
+        
+        # Product entries list
+        product_entries = []
+        products = invoice_data.get('products', [])
+        
+        for i, prod in enumerate(products):
+            prod_row = tk.Frame(prod_frame, bg=self.c['card'])
+            prod_row.pack(fill="x", pady=5)
+            
+            # Name
+            ttk.Label(prod_row, text="Name:", style="Label.TLabel").pack(side="left")
+            name_e = tk.Entry(prod_row, bg=self.c['input'], fg='white', insertbackground='white', font=("Segoe UI", 10), width=20)
+            name_e.insert(0, prod.get('name', ''))
+            name_e.pack(side="left", padx=(5, 10))
+            
+            # Size
+            ttk.Label(prod_row, text="Size:", style="Label.TLabel").pack(side="left")
+            size_e = tk.Entry(prod_row, bg=self.c['input'], fg='white', insertbackground='white', font=("Segoe UI", 10), width=6)
+            size_e.insert(0, prod.get('size', ''))
+            size_e.pack(side="left", padx=(5, 10))
+            
+            # Qty
+            ttk.Label(prod_row, text="Qty:", style="Label.TLabel").pack(side="left")
+            qty_e = tk.Entry(prod_row, bg=self.c['input'], fg='white', insertbackground='white', font=("Segoe UI", 10), width=5)
+            qty_e.insert(0, str(prod.get('qty', 1)))
+            qty_e.pack(side="left", padx=(5, 10))
+            
+            # Price
+            ttk.Label(prod_row, text="Price:", style="Label.TLabel").pack(side="left")
+            price_e = tk.Entry(prod_row, bg=self.c['input'], fg='white', insertbackground='white', font=("Segoe UI", 10), width=10)
+            price_e.insert(0, str(prod.get('price', 0)))
+            price_e.pack(side="left", padx=(5, 0))
+            
+            product_entries.append({'name': name_e, 'size': size_e, 'qty': qty_e, 'price': price_e})
+        
+        # Amounts Section
+        amt_frame = tk.Frame(content, bg=self.c['card'], padx=15, pady=15)
+        amt_frame.pack(fill="x", pady=(0, 15))
+        
+        ttk.Label(amt_frame, text="AMOUNTS", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        
+        # Discount
+        ttk.Label(amt_frame, text="Discount:", style="Label.TLabel").grid(row=1, column=0, sticky="w", pady=5)
+        discount_var = tk.StringVar(value=str(invoice_data.get('discount', 0)))
+        tk.Entry(amt_frame, textvariable=discount_var, bg=self.c['input'], fg='white', insertbackground='white', font=("Segoe UI", 10), width=15).grid(row=1, column=1, sticky="w", pady=5, padx=(10, 0))
+        
+        # Delivery
+        ttk.Label(amt_frame, text="Delivery:", style="Label.TLabel").grid(row=2, column=0, sticky="w", pady=5)
+        delivery_var = tk.StringVar(value=str(invoice_data.get('delivery', 0)))
+        tk.Entry(amt_frame, textvariable=delivery_var, bg=self.c['input'], fg='white', insertbackground='white', font=("Segoe UI", 10), width=15).grid(row=2, column=1, sticky="w", pady=5, padx=(10, 0))
+        
+        # Payment Section
+        pay_frame = tk.Frame(content, bg=self.c['card'], padx=15, pady=15)
+        pay_frame.pack(fill="x", pady=(0, 15))
+        
+        ttk.Label(pay_frame, text="PAYMENT", style="CardTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        
+        # Payment Method
+        ttk.Label(pay_frame, text="Method:", style="Label.TLabel").grid(row=1, column=0, sticky="w", pady=5)
+        payment_var = tk.StringVar(value=invoice_data.get('payment_method', 'Cash'))
+        payment_combo = ttk.Combobox(pay_frame, textvariable=payment_var, values=["Cash", "bKash", "Nagad", "Card"], state="readonly", width=15)
+        payment_combo.grid(row=1, column=1, sticky="w", pady=5, padx=(10, 0))
+        
+        # Transaction ID
+        ttk.Label(pay_frame, text="Transaction ID:", style="Label.TLabel").grid(row=2, column=0, sticky="w", pady=5)
+        trans_var = tk.StringVar(value=invoice_data.get('transaction_id', ''))
+        tk.Entry(pay_frame, textvariable=trans_var, bg=self.c['input'], fg='white', insertbackground='white', font=("Segoe UI", 10), width=25).grid(row=2, column=1, sticky="w", pady=5, padx=(10, 0))
+        
+        # Buttons
+        btn_frame = tk.Frame(content, bg=self.c['bg'])
+        btn_frame.pack(fill="x", pady=(20, 0))
+        
+        def save_changes():
+            try:
+                # Collect product data
+                updated_products = []
+                subtotal = 0
+                for pe in product_entries:
+                    pname = pe['name'].get().strip()
+                    if not pname:
+                        continue
+                    size = pe['size'].get().strip()
+                    qty = int(pe['qty'].get() or 1)
+                    price = float(pe['price'].get() or 0)
+                    updated_products.append({
+                        'name': pname,
+                        'size': size,
+                        'qty': qty,
+                        'price': price
+                    })
+                    subtotal += qty * price
+                
+                discount = float(discount_var.get() or 0)
+                delivery = float(delivery_var.get() or 0)
+                grand_total = subtotal - discount + delivery
+                
+                # Update invoice data
+                updated_data = {
+                    'invoice_number': invoice_number,
+                    'date': invoice_data.get('date', ''),
+                    'customer_name': name_var.get(),
+                    'customer_phone': phone_var.get(),
+                    'customer_address': addr_var.get(),
+                    'subtotal': subtotal,
+                    'discount': discount,
+                    'delivery': delivery,
+                    'grand_total': grand_total,
+                    'payment_method': payment_var.get(),
+                    'transaction_id': trans_var.get(),
+                    'products': updated_products
+                }
+                
+                # Save to data manager - convert numbers to strings for CSV compatibility
+                success = self.app.dm.update_invoice(invoice_number, {
+                    'customer_name': updated_data['customer_name'],
+                    'customer_phone': str(updated_data['customer_phone']),
+                    'customer_address': updated_data['customer_address'],
+                    'subtotal': str(updated_data['subtotal']),
+                    'discount': str(updated_data['discount']),
+                    'delivery': str(updated_data['delivery']),
+                    'grand_total': str(updated_data['grand_total']),
+                    'payment_method': updated_data['payment_method'],
+                    'transaction_id': str(updated_data['transaction_id']),
+                    'items_json': str(updated_products)
+                })
+                
+                if not success:
+                    messagebox.showerror("Error", "Failed to save changes!")
+                    return
+                
+                # Regenerate PDF
+                folder = self.app.dm.get_config('output_folder', SCRIPT_DIR)
+                path = os.path.join(folder, f"Invoice_{invoice_number.replace('#','').replace('-','_')}.pdf")
+                
+                gen = InvoiceGenerator(path)
+                gen.generate(updated_data)
+                
+                edit_win.destroy()
+                self._refresh()
+                
+                messagebox.showinfo("Success", f"Invoice updated and PDF regenerated!\n\nSaved to: {path}")
+                os.startfile(path)
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to save changes: {str(e)}")
+        
+        tk.Button(btn_frame, text="💾 SAVE & REGENERATE PDF", command=save_changes, 
+                 bg=self.c['accent'], fg='white', relief='flat', padx=20, pady=10,
+                 font=("Segoe UI", 11, "bold")).pack(side="left", padx=(0, 10))
+        
+        tk.Button(btn_frame, text="Cancel", command=edit_win.destroy,
+                 bg=self.c['card'], fg='white', relief='flat', padx=20, pady=10,
+                 font=("Segoe UI", 10)).pack(side="left")
     
     def _delete_invoice(self):
         """Delete selected invoice"""

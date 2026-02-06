@@ -334,20 +334,31 @@ class DataManager:
     
     def update_invoice(self, invoice_number, updated_data):
         """Update an existing invoice"""
-        try:
-            df = pd.read_csv(self.invoice_file)
-            mask = df['invoice_number'] == invoice_number
-            if mask.any():
-                # Update all fields from updated_data
-                for key, value in updated_data.items():
-                    if key in df.columns and key != 'invoice_number':
-                        df.loc[mask, key] = value
-                df.to_csv(self.invoice_file, index=False)
-                return True
-            return False
-        except Exception as e:
-            print(f"Error updating invoice: {e}")
-            return False
+        import time
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                df = pd.read_csv(self.invoice_file, dtype=str)  # Read all as strings
+                mask = df['invoice_number'] == invoice_number
+                if mask.any():
+                    # Update all fields from updated_data
+                    for key, value in updated_data.items():
+                        if key in df.columns and key != 'invoice_number':
+                            df.loc[mask, key] = str(value) if value is not None else ''
+                    df.to_csv(self.invoice_file, index=False)
+                    return True
+                return False
+            except PermissionError as e:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5)  # Wait before retry
+                    continue
+                print(f"Error updating invoice: File may be open in another program. Please close it and try again.")
+                return False
+            except Exception as e:
+                print(f"Error updating invoice: {e}")
+                return False
+        return False
     
     def delete_invoice(self, invoice_number):
         """Delete an invoice and return its data"""
